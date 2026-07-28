@@ -2,6 +2,8 @@
 
 > Modern, zero-overhead GNOME Shell extension for GPU-accelerated desktop color tinting and grayscale filters.
 
+![Pasynkov Tint Showcase](icons/showcase.png)
+
 **UUID:** `pasynkov-tint@fedor-pasynkov.ru`  
 **Compatibility:** GNOME Shell 42 – 46+ (Ubuntu 22.04 / 24.04+, Wayland & X11)  
 **License:** MIT  
