@@ -45,10 +45,12 @@ class PasynkovTintExtension {
     }
 
     _restoreState() {
-        const restoreState = this._settings.get_boolean('restore-state');
         const enabled = this._settings.get_boolean('effect-enabled');
 
-        if (restoreState && enabled) {
+        // Always apply the saved state. The 'restore-state' setting controls
+        // whether the user WANTS the effect to survive a session restart —
+        // if they've toggled the extension back on, honour effect-enabled directly.
+        if (enabled) {
             this._applyCurrentSettings();
         } else {
             this._effectManager.disableEffect();
