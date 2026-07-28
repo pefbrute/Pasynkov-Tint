@@ -26,7 +26,7 @@ gnome-shell: Failed to create offscreen effect framebuffer:
 
 For years, users searching for a **reliable Tint All alternative** or a **permanent GNOME Bedtime Mode fix** were told this was an unfixable Mutter/Wayland bug.
 
-In this article, I will explain the **technical root cause of why traditional GNOME Shell color filters fail**, and how I built **[Pasynkov Tint](https://github.com/pefbrute/Pasynkov-Tint)** — a high-performance, GPU-accelerated **GNOME color tint & grayscale extension** that never drops a single frame.
+In this article, I will explain the **technical root cause of why traditional GNOME Shell color filters fail**, and how I built **[Pasynkov Tint](https://github.com/pefbrute/Pasynkov-Tint)** — a high-performance, per-actor **GNOME color tint & grayscale extension** engineered to eliminate Wayland framebuffer drops.
 
 ---
 
@@ -51,7 +51,7 @@ To understand why extensions like *Tint All* and *GNOME Bedtime Mode* drop their
 | **Grayscale / Monochrome Filter** | ✅ Yes | ✅ Yes |
 | **Custom Color Tints (Amber, Sepia, Cyan, Green)** | ⚠️ Limited | ✅ Full (with dynamic presets) |
 | **Mouse Wheel Intensity Control** | ❌ No | ✅ Yes (Scroll over top bar icon) |
-| **Telegram / Qt6 App Compatibility** | ❌ Drops / Crashes | ✅ **100% Stable (Zero Drops)** |
+| **Telegram / Qt6 App Compatibility** | ❌ Drops / Crashes | ✅ **Highly Stable (No Drops)** |
 | **Overview (Super Key) Support** | ⚠️ Partial | ✅ Fully Filtered |
 | **Custom Side Docks (`right-dock`, Dash)** | ❌ Missing | ✅ Fully Filtered |
 | **GPU Texture Allocations Per Frame** | 2 Full-Screen Multi-Monitor FBOs | 1 Bounded Actor FBO Per Element |
