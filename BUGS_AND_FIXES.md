@@ -236,35 +236,39 @@ Failed to create texture 2d due to size/format constraints
 
 ---
 
-## 🔴 БАГ 7 — Окна становятся невидимыми при включении фильтра (в per-window режиме)
+## ✅ БАГ 7 — Окна становились невидимыми при включении фильтра (в per-window режиме)
 
 **Когда:** Включить фильтр при использовании per-window `Shell.GLSLEffect`.
 
-**Симптом:**Все окна сразу скрываются (становятся прозрачными/невидимыми).
+**Симптом:** Все окна сразу скрывались (становились прозрачными/невидимыми).
 
 **Логи:**
 ```
 Failed to link GLSL program:
 error: `u_intensity' redeclared
-error: `u_desat' redeclared
-error: `u_tint' redeclared
-error: `u_tint_mix' redeclared
 ```
 
 **Причина:**  
-Каждый создаваемый экземпляр `PasynkovTintEffect` на окнах добавлял строку объявления `uniform float u_intensity;` в шейдерную программу Cogl. Cogl объединял их, получая дублирующиеся переменные и ошибку линковки GLSL. Из-за ошибки линковки окно рендерилось прозрачным.
+Каждый создаваемый экземпляр `PasynkovTintEffect` добавлял `uniform float u_intensity;` в общую GLSL-программу Cogl, вызывая ошибку линковки.
 
 **Решение:**  
-Обернуть определение uniform-переменных в `#ifndef PASYNKOV_TINT_UNIFORMS`:
-```glsl
-#ifndef PASYNKOV_TINT_UNIFORMS
-#define PASYNKOV_TINT_UNIFORMS
-uniform float u_intensity;
-uniform float u_desat;
-uniform vec3  u_tint;
-uniform float u_tint_mix;
-#endif
-```
+Обернули определение uniform в `#ifndef PASYNKOV_TINT_UNIFORMS`.
+
+---
+
+## 🟡 БАГ 8 — В режиме Overview и на доке `right-dock` фильтр не отображался
+
+**Когда:** Включён per-window режим.
+
+**Симптом:**
+- Overview (Super/Win) — ✅ **ИСПРАВЛЕНО!** (Фильтр теперь работает в обзоре окон).
+- Док-панель `right-dock` — 🟡 В процессе исправления.
+
+**Причина неработавшего `right-dock`:**
+В `effectManager.js` итерация шла по `Main.layoutManager._chrome` как по массиву (`for (const c of _chrome)`), однако `_chrome` — это объект класса `LayoutManager.Chrome`. Массив зарегистрированных акторов хрома находится в `Main.layoutManager._trackedActors` или `Main.layoutManager._chrome._trackedActors`.
+
+**Решение:**
+Использовать массив `_trackedActors` для правильного обхода всех сторонних док-панелей и прикрепления эффекта к актору `_dockContainer`.
 
 ---
 

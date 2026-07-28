@@ -1,13 +1,13 @@
-# БАГ 6 — Фильтр слетает при смене фокуса на Telegram и проблемы реализации
+# БАГ 6 — Фильтр слетает при смене фокуса на Telegram (РЕШЕНО через Per-Window)
 
-> **Статус:** В процессе решения.  
-> **Приоритет:** Высокий.
+> **Статус:** РЕШЕНО.  
+> **Фикс Telegram:** Подтверждён пользователем! В Telegram фильтр больше не слетает при открытии каналов.
 
 ---
 
 ## 1. Исходная проблема (на `Main.uiGroup`)
 
-Включён любой пресет. Открываешь Telegram Desktop (написан на **Qt 6 / 5.15**), нажимаешь на канал — фильтр **мгновенно пропадает**. При переключении на другое окно — возвращается.
+Включён любой пресет. Открываешь Telegram Desktop (Qt 6 / 5.15), нажимаешь на канал — фильтр **мгновенно пропадает**. При переключении на другое окно — возвращается.
 
 ### Логи в момент сбоя:
 ```
@@ -16,50 +16,24 @@ gnome-shell: Failed to create offscreen effect framebuffer:
 ```
 
 ### Причина:
-`Clutter.DesaturateEffect` и `Clutter.BrightnessContrastEffect` на `Main.uiGroup` создают полноэкранные offscreen-текстуры. При обновлении Wayland-поверхностей Telegram Mutter временно не может выделить полноэкранный FBO и прекращает рендер эффекта (при этом `get_effect()` продолжает возвращать объект эффекта).
+`Clutter.OffscreenEffect` на `Main.uiGroup` создавал полноэкранную offscreen-текстуру. При обновлении Wayland-поверхностей Telegram Mutter временно не мог выделить полноэкранный FBO и прекращал рендер эффекта.
 
 ---
 
-## 2. Попытка решения через per-window (и появление БАГА 7: скрытие окон)
+## 2. Решение: Per-Window архитектура
 
-### Что сделано:
 Перенесли `Shell.GLSLEffect` с глобального `Main.uiGroup` на каждый `MetaWindowActor` отдельно + `Main.panel` + `_backgroundGroup`.
 
-### Что произошло (Симптом):
-При включении фильтра **все окна становятся невидимыми (скрываются)**!
-
-### Логи при включении per-window эффекта:
-```
-Failed to link GLSL program:
-error: `u_intensity' redeclared
-error: `u_desat' redeclared
-error: `u_tint' redeclared
-error: `u_tint_mix' redeclared
-error: linking with uncompiled/unspecialized shader
-```
-
-### Причина скрытия окон:
-При создании множества экземпляров `PasynkovTintEffect` (по одному на каждое окно) метод `add_glsl_snippet` регистрировал объявление `uniform float u_intensity;` в общей программе Cogl. Из-за повторных объявлений в GLSL возникала ошибка линковки шейдера (`redeclared`). Когда GLSL-программа не линкуется, Cogl рендерит прозрачную/пустую текстуру для актора окна — в результате окно полностью исчезает с экрана!
+- **Результат:** Текстура каждого окна небольшая (только размер этого окна) → GPU allocation **никогда не падает**, Telegram работает идеально!
 
 ---
 
-## 3. Решение проблемы с GLSL (в процессе проверки)
+## 3. Возникавшие побочные эффекты и их решение
 
-1. **Защита от повторного объявления (GLSL Guard):**
-   Обернуть объявления uniform в `#ifndef PASYNKOV_TINT_UNIFORMS`:
-   ```glsl
-   #ifndef PASYNKOV_TINT_UNIFORMS
-   #define PASYNKOV_TINT_UNIFORMS
-   uniform float u_intensity;
-   uniform float u_desat;
-   uniform vec3  u_tint;
-   uniform float u_tint_mix;
-   #endif
-   ```
-2. **Передача единого экземпляра / правильная параметризация шейдеров для per-window.**
+### ✅ Баг 7: Окна скрывались (исправлено)
+- **Причина:** GLSL-ошибка `u_intensity redeclared` при создании нескольких экземпляров эффекта.
+- **Решение:** Обернули определение uniform в `#ifndef PASYNKOV_TINT_UNIFORMS`.
 
----
-
-## Ссылки и история
-- [Telegram Desktop (Qt)](https://github.com/telegramdesktop/tdesktop)
-- [Mutter Clutter.OffscreenEffect Docs](https://mutter.gnome.org/clutter/class.OffscreenEffect.html)
+### 🟡 Баг 8: Overview (Super/Win) и `right-dock`
+- **Overview:** ✅ **ИСПРАВЛЕНО.** Прикрепление к `Main.overview._overview` / `_controls` полностью заработало.
+- **`right-dock` / Сторонние доки:** 🟡 **В ПРОЦЕССЕ.** Причина: итерация по `_chrome` требовала доступа к полю `_trackedActors` (массив акторов `LayoutManager.Chrome`). Решение внесено в `effectManager.js`.
