@@ -3,12 +3,12 @@ title: Looking for a Working GNOME Grayscale & Eye Strain Filter? How I Fixed "T
 published: true
 description: Looking for a working GNOME Shell grayscale filter, eye strain reducer, or a reliable alternative to Tint All & GNOME Bedtime Mode? Discover how Pasynkov Tint uses a per-actor GLSL engine to eliminate Telegram crashes and framebuffer drops on Wayland.
 tags: gnome, linux, accessibility, javascript
-cover_image: https://raw.githubusercontent.com/pefbrute/Pasynkov-Tint/main/icons/showcase.png
+cover_image: https://raw.githubusercontent.com/pefbrute/Pasynkov-Tint/main/icons/telegram_showcase.png
 ---
 
 # Looking for a Working GNOME Grayscale & Eye Strain Filter? How I Fixed "Tint All" & Built Pasynkov Tint
 
-![Pasynkov Tint Showcase](https://raw.githubusercontent.com/pefbrute/Pasynkov-Tint/main/icons/showcase.png)
+![Pasynkov Tint Telegram Showcase](https://raw.githubusercontent.com/pefbrute/Pasynkov-Tint/main/icons/telegram_showcase.png)
 
 If you spend long hours in front of a monitor, using a **grayscale (monochrome) filter** or a **warm color tint (amber/sepia)** is one of the most effective ways to reduce eye strain, minimize digital fatigue, and cut down on dopamine-driven screen distractions.
 
