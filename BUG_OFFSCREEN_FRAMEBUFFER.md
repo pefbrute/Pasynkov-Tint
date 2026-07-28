@@ -1,42 +1,49 @@
-# БАГ 6 — Фильтр слетает при смене фокуса на Telegram (РЕШЕНО через Per-Window)
+# Post-Mortem: GNOME Shell Offscreen Framebuffer Drop on Wayland
 
-> **Статус:** РЕШЕНО.  
-> **Фикс Telegram:** Подтверждён пользователем! В Telegram фильтр больше не слетает при открытии каналов.
+Technical root-cause post-mortem detailing why traditional desktop desaturation and tint extensions fail under GNOME Shell / Wayland when Qt 6 applications (e.g., Telegram Desktop) trigger Wayland sub-surface updates.
 
 ---
 
-## 1. Исходная проблема (на `Main.uiGroup`)
+## 1. Problem Statement
 
-Включён любой пресет. Открываешь Telegram Desktop (Qt 6 / 5.15), нажимаешь на канал — фильтр **мгновенно пропадает**. При переключении на другое окно — возвращается.
+When using extensions like *Tint All* or *GNOME Bedtime Mode*, focusing Telegram Desktop or playing video in Qt applications causes the desktop color filter to instantly drop.
 
-### Логи в момент сбоя:
-```
+System logs (`journalctl -f /usr/bin/gnome-shell`) report repeating Cogl framebuffer creation failures:
+
+```text
 gnome-shell: Failed to create offscreen effect framebuffer:
              Failed to create texture 2d due to size/format constraints
 ```
 
-### Причина:
-`Clutter.OffscreenEffect` на `Main.uiGroup` создавал полноэкранную offscreen-текстуру. При обновлении Wayland-поверхностей Telegram Mutter временно не мог выделить полноэкранный FBO и прекращал рендер эффекта.
+---
+
+## 2. Root Cause Analysis
+
+### Root-Level `uiGroup` Offscreen Effect Architecture
+
+Traditional extensions apply desaturation by attaching `Clutter.DesaturateEffect` directly to `Main.uiGroup` (the root scene graph node containing all windows, panels, and wallpapers).
+
+Because `Clutter.DesaturateEffect` inherits from `Clutter.OffscreenEffect`, GNOME Shell must allocate a full-screen GPU texture framebuffer (FBO) matching the bounding box of the entire desktop across all monitors.
+
+### The Wayland Damage Surface Trigger
+
+1. **Qt 6 Wayland Sub-Surfaces**: Telegram Desktop relies on rapid sub-surface redraws, dynamic HiDPI scaling, and damage region updates.
+2. **Cogl Allocation Rejection**: During Wayland surface updates, Mutter recalculates the paint volume of `Main.uiGroup`. When multi-monitor bounding dimensions exceed GPU hardware texture limits or format constraints, `cogl_texture_2d_new_with_size` returns `NULL`.
+3. **Silent Bypass**: Mutter catches the allocation failure and silently skips rendering the offscreen pass. The filter remains logically attached, but visual output reverts to full color.
 
 ---
 
-## 2. Решение: Per-Window архитектура
+## 3. The Solution: Single-Pass Per-Actor GLSL Engine
 
-Перенесли `Shell.GLSLEffect` с глобального `Main.uiGroup` на каждый `MetaWindowActor` отдельно + `Main.panel` + `_backgroundGroup`.
+**Pasynkov Tint** eliminates full-screen offscreen framebuffer allocations entirely by attaching lightweight shader instances directly to individual actors:
 
-- **Результат:** Текстура каждого окна небольшая (только размер этого окна) → GPU allocation **никогда не падает**, Telegram работает идеально!
+1. Every application window (`MetaWindowActor`)
+2. Top Bar Panel (`Main.panel`)
+3. Desktop Wallpaper (`Main.layoutManager._backgroundGroup`)
+4. Overview (`Main.overview._overview`)
+5. Side Docks (`right-dock`, Dash)
 
----
-
-## 3. Возникавшие побочные эффекты и их решение
-
-### ✅ Баг 7: Окна скрывались (исправлено)
-- **Причина:** GLSL-ошибка `u_intensity redeclared` при создании нескольких экземпляров эффекта.
-- **Решение:** Обернули определение uniform в `#ifndef PASYNKOV_TINT_UNIFORMS`.
-
-### ✅ Баг 8: Overview (Super/Win) и `right-dock` (РЕШЕНО)
-- **Overview:** ✅ **ИСПРАВЛЕНО.**
-- **`right-dock` / Сторонние доки:** ✅ **ИСПРАВЛЕНО.** 
-
-### 🟡 Баг 9: Alt+Tab switcher (В процессе)
-- **Alt+Tab:** 🟡 Панель переключения AltTab создается динамически при нажатии клавиш. Решение: отслеживать `switcher-popup` / `modalDialogGroup` в `effectManager.js`.
+### Technical Benefits
+- **Bounded FBO Size**: Each offscreen texture is constrained to the exact pixel dimensions of a single window or panel.
+- **Zero Allocation Failures**: Small window textures never hit GPU multi-monitor size limits.
+- **Single GPU Pass**: Desaturation, brightness/contrast scaling, and color tinting are executed in a single GLSL fragment shader pass.

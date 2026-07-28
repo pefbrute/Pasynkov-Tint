@@ -194,7 +194,7 @@ function fillPreferencesWindow(window) {
     [
         ['Pasynkov Tint',  _('Version 0.1.0 – Desktop Color Filters for GNOME Shell')],
         [_('Author'),      'Fedor Pasynkov'],
-        [_('License'),     'GNU General Public License v3.0 or later (GPL-3.0-or-later)'],
+        [_('License'),     'MIT License'],
         [_('Inspired by'), _('Tint All extension by Amaro Vita')],
     ].forEach(([title, subtitle]) => {
         aboutGroup.add(new Adw.ActionRow({ title, subtitle }));

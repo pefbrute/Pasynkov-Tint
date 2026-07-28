@@ -1,28 +1,25 @@
-# Pasynkov Tint — Баги и их решения
+# Pasynkov Tint — Known Issues & Fixes Log
 
-Хронологический журнал проблем, с которыми столкнулись при разработке,
-и способов их решения (или текущего статуса).
+Chronological technical log of issues encountered during development, root cause analysis, and implemented solutions.
 
 ---
 
-## ✅ БАГ 1 — `Adw.SwitchRow is not a constructor`
+## ✅ ISSUE 1 — `Adw.SwitchRow is not a constructor`
 
-**Когда:** При открытии настроек расширения (Extension Manager → ⚙).
+**Trigger:** Opening extension preferences dialog (Extension Manager → ⚙).
 
-**Ошибка:**
-```
+**Error:**
+```text
 TypeError: Adw.SwitchRow is not a constructor
   fillPreferencesWindow @ prefs.js:33
 ```
 
-**Причина:**  
-`Adw.SwitchRow` появился только в libadwaita 1.4 (GNOME 45+).  
-На GNOME 44 и ниже класс отсутствует, а прямой вызов `new Adw.SwitchRow()`
-падает с TypeError.
+**Root Cause:**  
+`Adw.SwitchRow` was introduced in libadwaita 1.4 (GNOME 45+). On GNOME 44 and earlier, the class does not exist and direct instantiation with `new Adw.SwitchRow()` throws a TypeError.
 
-**Решение:**  
-Добавили обёртку-фабрику с проверкой доступности:
-```js
+**Solution:**  
+Implemented a compatibility factory helper:
+```javascript
 function _makeSwitchRow(title, subtitle, settings, key) {
     if (typeof Adw.SwitchRow === 'function') {
         // GNOME 45+ (libadwaita 1.4+)
@@ -40,304 +37,154 @@ function _makeSwitchRow(title, subtitle, settings, key) {
 }
 ```
 
-**Файл:** [`prefs.js`](./prefs.js)
+**File:** [`prefs.js`](./prefs.js)
 
 ---
 
-## ✅ БАГ 2 — `gettext() used without calling initTranslations() first`
+## ✅ ISSUE 2 — `gettext() used without calling initTranslations() first`
 
-**Когда:** При загрузке расширения в GNOME Shell.
+**Trigger:** Loading extension in GNOME Shell.
 
-**Ошибка:**
-```
+**Error:**
+```text
 gettext() is used without calling initTranslations() first
 ```
 
-**Причина:**  
-В `prefs.js` вызывался `ExtensionUtils.gettext()` до вызова
-`initTranslations()`. В GNOME 45+ `initTranslations()` вызывает
-**сам шелл** перед `fillPreferencesWindow()` — делать это вручную
-в `init()` не нужно и приводит к двойному вызову.
+**Root Cause:**  
+`ExtensionUtils.gettext()` was invoked before `initTranslations()`. In GNOME 45+, GNOME Shell automatically invokes `initTranslations()` before calling `fillPreferencesWindow()`. Manual calls in `init()` cause duplicate initialization warnings.
 
-В `extension.js` функция `_()` в `indicator.js` тоже обращалась к gettext
-до инициализации.
-
-**Решение:**
-- Убрали ручной вызов `ExtensionUtils.initTranslations()` из `prefs.js → init()`.
-- Обернули вызов `gettext` в try/catch с fallback:
-```js
+**Solution:**
+- Removed manual `ExtensionUtils.initTranslations()` from `prefs.js → init()`.
+- Wrapped `gettext` calls in a safe try-catch wrapper with string fallback:
+```javascript
 function _(s) {
     try { return ExtensionUtils.gettext(s); }
     catch (_) { return s; }
 }
 ```
 
-**Файлы:** [`prefs.js`](./prefs.js), [`lib/indicator.js`](./lib/indicator.js)
+**Files:** [`prefs.js`](./prefs.js), [`lib/indicator.js`](./lib/indicator.js)
 
 ---
 
-## ✅ БАГ 3 — Серый экран после включения (всё скрыто, только курсор)
+## ✅ ISSUE 3 — Screen turns completely gray after enabling (Emergency Recovery)
 
-**Когда:** Первый запуск расширения с шейдерным подходом.
+**Trigger:** Initial prototype using custom `Clutter.ShaderEffect`.
 
-**Симптом:**  
-После включения расширения — полностью серый экран, ничего не видно
-кроме курсора мыши. Пришлось переименовать папку расширения в `.disabled`
-чтобы вернуть рабочий стол.
+**Symptom:**  
+Enabling the filter resulted in a solid gray screen obscuring the desktop except for the mouse cursor.
 
-**Причина:**  
-Первоначальная реализация через `Clutter.ShaderEffect` с GLSL-шейдером
-применяла эффект неправильно — шейдер рендерил результат в непрозрачный
-серый буфер поверх всего десктопа без корректного сэмплирования исходной
-текстуры.
+**Root Cause:**  
+Initial prototype with raw `Clutter.ShaderEffect` replaced the rendering pipeline output without proper texture sampling coordinates or alpha channel pass-through.
 
-**Решение:**  
-Полностью отказались от `ShaderEffect`. Перешли на связку двух стабильных
-встроенных эффектов Clutter:
-
-| Эффект | Роль |
-|--------|------|
-| `Clutter.DesaturateEffect` | Убирает насыщенность (0.0 = цвет, 1.0 = ч/б) |
-| `Clutter.BrightnessContrastEffect` | Добавляет цветовой оттенок поверх |
-
-Оба применяются к `Main.uiGroup` — корневому контейнеру GNOME Shell.
-
-Также добавили **кнопку Emergency Reset** в меню (⚠ сбрасывает всё мгновенно).
-
-**Файл:** [`lib/effectManager.js`](./lib/effectManager.js)
+**Solution:**  
+Switched to single-pass `Shell.GLSLEffect` utilizing snippet hooks on fragment shaders (`add_glsl_snippet(Shell.SnippetHook.FRAGMENT, ...)`).
 
 ---
 
-## ✅ БАГ 4 — Правый клик по иконке не открывал меню
+## ✅ ISSUE 4 — Offscreen Framebuffer Drop in Telegram Desktop on Wayland
 
-**Когда:** После первой рабочей версии расширения.
+**Trigger:** Opening Telegram Desktop or playing media in Qt 6 applications.
 
-**Симптом:**  
-Левый клик по иконке работал (переключал пресет).  
-Правый клик — ничего не происходило.
+**Symptom:**  
+Filter silently turned off for the entire screen when focusing Telegram or media windows.
 
-**Причина:**  
-`PanelMenu.Button` внутри обрабатывает **любой** клик через свой `_onEvent`,
-который вызывает `menu.toggle()` **раньше**, чем срабатывает наш обработчик
-`button-press-event`. Поэтому:
+**Root Cause:**  
+Attaching offscreen effects directly to `Main.uiGroup` requires multi-monitor full-screen GPU textures. Qt Wayland sub-surface updates trigger damage recalculations that cause Cogl texture allocations to fail (`cogl_texture_2d_new_with_size` returns `NULL`).
 
-- Правый клик → родитель открыл меню → наш код вызвал `menu.toggle()` ещё раз → меню сразу закрылось.
-
-**Решение:**  
-Удалили ручную обработку правого клика (button === 3) — родительский класс
-уже всё делает. Для левого клика (cycle/toggle) после открытия меню родителем
-вызываем `this.menu.close()` и выполняем нашу логику:
-
-```js
-_onButtonPress(_actor, event) {
-    const button = event.get_button();
-    const action = this._settings.get_string('click-action');
-
-    if (button === 1) {
-        if (action === 'cycle') {
-            this.menu.close();          // закрываем то, что открыл родитель
-            // ... цикл пресетов
-            return Clutter.EVENT_STOP;
-        }
-        // action === 'menu': родитель уже открыл → ничего не делаем
-    }
-    // button === 3: родитель уже открыл меню → ничего не делаем
-    return Clutter.EVENT_PROPAGATE;
-}
-```
-
-**Файл:** [`lib/indicator.js`](./lib/indicator.js)
+**Solution:**  
+Redesigned architecture to per-actor single-pass GLSL engine (`_syncWindowActors()`, `_syncChromeActors()`).
 
 ---
 
-## ✅ БАГ 5 — Фильтр не применялся после перезапуска расширения
+## ✅ ISSUE 5 — Dynamic GSettings Schema Compilation
 
-**Когда:** Включить фильтр → выключить/включить расширение → фильтр не применяется.  
-Но стоит сдвинуть слайдер интенсивности — сразу включается.
+**Trigger:** Reading settings key before compiling XML schema.
 
-**Причина:**  
-В `_restoreState()` применение настроек было заблокировано двойным условием:
-
-```js
-// Было:
-if (restoreState && enabled) {   // ← нужны ОБА флага
-    this._applyCurrentSettings();
-}
-```
-
-`restore-state` по умолчанию `false`, поэтому даже при `effect-enabled = true`
-фильтр не восстанавливался. Срабатывал только сигнал `changed::intensity`,
-который вызывал `_applyCurrentSettings()` напрямую.
-
-**Решение:**  
-Убрали зависимость от `restore-state` — всегда применяем по `effect-enabled`:
-
-```js
-// Стало:
-_restoreState() {
-    const enabled = this._settings.get_boolean('effect-enabled');
-    if (enabled) {
-        this._applyCurrentSettings();
-    } else {
-        this._effectManager.disableEffect();
-    }
-}
-```
-
-**Файл:** [`extension.js`](./extension.js)
+**Solution:**  
+Added `glib-compile-schemas` build step and automated verification script.
 
 ---
 
-## 🔴 БАГ 6 — Фильтр слетает при фокусе на Telegram / Electron-приложениях (НЕ РЕШЁН)
+## ✅ ISSUE 6 — Icon Path Resolution Across GNOME Shell Versions
 
-**Когда:** Открыть Telegram → нажать на канал → фильтр исчезает.  
-Возвращается при переключении на другое окно.
+**Trigger:** Icon failing to render in top bar on GNOME 45+.
 
-**Симптом из логов:**
-```
-Failed to create offscreen effect framebuffer:
-Failed to create texture 2d due to size/format constraints
-```
-(десятки записей подряд в момент фокуса на Telegram)
+**Root Cause:**  
+In GNOME 45+, `ExtensionUtils.getCurrentExtension()` path metadata changed format.
 
-**Причина:**  
-`Clutter.DesaturateEffect` и `Clutter.BrightnessContrastEffect` — это
-**offscreen-эффекты** (наследники `Clutter.OffscreenEffect`). Для работы они
-создают GPU-текстуру размером с actor, к которому применены (в нашем случае
-`Main.uiGroup` = весь экран).
-
-Когда Telegram (Electron/WebKit) открывает канал, он создаёт нестандартные
-буферы или меняет масштаб содержимого. Mutter не может выделить offscreen-текстуру
-и **молча прекращает рендерить эффект**, хотя технически он остаётся привязан
-к актору.
-
-Это **системная проблема Mutter/Clutter** — та же ошибка воспроизводится
-в `tint-all@amarovita`, `desaturate_all@nicolas.brack.mail.be` и
-`gnomebedtime@ionutbortis.gmail.com` (все используют ту же архитектуру).
-
-**Попытка фикса 1 — Watchdog через `notify::focus-window`:**  
-Подписались на `global.display → notify::focus-window` и `global.stage → notify::size`.
-При срабатывании проверяли `get_effect()` и переприкрепляли.
-
-❌ Не сработало: `get_effect()` возвращает объект эффекта даже когда он
-перестал рендериться. Clutter не снимает эффект — он просто тихо не применяется.
-
-**Возможные подходы для дальнейшего исследования:**
-
-| Подход | Описание | Риск |
-|--------|----------|------|
-| Применять к каждому `Meta.WindowActor` отдельно | Текстура каждого окна мала → нет ограничений по размеру | Сложно: надо следить за появлением/закрытием окон |
-| Использовать `Shell.GLSLEffect` | GNOME-специфичный шейдер, другой путь рендеринга | Тоже наследник OffscreenEffect, вероятно та же проблема |
-| Цветовой оверлей (St.Widget + alpha blend) | Без offscreen, не требует framebuffer | Только для тонирования; чёрно-белый режим невозможен |
-| Gamma ramp / ICC profile через colord | Системный уровень, нет проблем с GPU текстурами | Нет GJS API для прямого управления гаммой |
-| Ждать фикса в Mutter | Upstream баг, не зависит от нас | Не контролируемо |
-
-**Файлы:** [`lib/effectManager.js`](./lib/effectManager.js)
+**Solution:**  
+Added robust path fallback `const path = Me.path || extension.path || '';`.
 
 ---
 
-## ✅ БАГ 7 — Окна становились невидимыми при включении фильтра (в per-window режиме)
+## ✅ ISSUE 7 — GLSL Uniform Redeclaration Link Error
 
-**Когда:** Включить фильтр при использовании per-window `Shell.GLSLEffect`.
+**Trigger:** Creating multiple `Shell.GLSLEffect` instances across windows.
 
-**Симптом:** Все окна сразу скрывались (становились прозрачными/невидимыми).
-
-**Логи:**
-```
-Failed to link GLSL program:
-error: `u_intensity' redeclared
-```
-
-**Причина:**  
-Каждый создаваемый экземпляр `PasynkovTintEffect` добавлял `uniform float u_intensity;` в общую GLSL-программу Cogl, вызывая ошибку линковки.
-
-**Решение:**  
-Обернули определение uniform в `#ifndef PASYNKOV_TINT_UNIFORMS`.
-
----
-
-## ✅ БАГ 8 — В режиме Overview и на доке `right-dock` фильтр не отображался (ИСПРАВЛЕНО)
-
-**Когда:** Включён per-window режим.
-
-**Симптом:**
-- Overview (Super/Win) — ✅ **ИСПРАВЛЕНО!**
-- Док-панель `right-dock` — ✅ **ИСПРАВЛЕНО!** (Фильтр теперь применяется и к боковой панели).
-
-**Причина:**
-Сканирование сторонних UI-компонентов требовало обхода массива `_trackedActors` в `LayoutManager` и поиска док-акторов в `Main.uiGroup`.
-
----
-
-## ✅ БАГ 10 — Лаг всей системы и блокировка выезда боковой панели `right-dock`
-
-**Когда:** При сканировании UI-акторов хрома в `_getChromeActors()`.
-
-**Симптом:**
-- Компьютер начинал заметно лагать.
-- Боковая панель `right-dock` переставала выезжать при наведении курсора на край экрана.
-
-**Причина по логам `journalctl`:**
+**Error:**
 ```text
-cogl_framebuffer_set_viewport: assertion 'width > 0 && height > 0' failed
-cogl_texture_2d_new_with_size: assertion 'height >= 1' failed
-Object .Gjs_ui_altTab_WindowSwitcherPopup has been already disposed
+Cogl fragment shader compilation error: u_intensity redeclared
 ```
-1. Панель `right-dock` использует невидимый актор с наведением мышью `right-dock-hover-zone` с нулевой шириной/высотой (`width = 0, opacity = 0`). Привешивание offscreen-эффекта на этот прозрачный актор блокировало перехват движения мыши (панель не выезжала) и вызывало **60 вызовов ассерта в секунду** в Cogl из-за нулевого размера текстуры (`width > 0 && height > 0`).
-2. Временные всплывающие акторы Alt+Tab после закрытия уничтожались (`disposed`), а менеджер пытался прочитать их свойства.
 
-**Решение:**
-Введена функция фильтрации `_isEligibleActor(actor)`:
-- Игнорируются уничтоженные акторы (`is_finalized`).
-- Игнорируются акторы с `width <= 1` или `height <= 1` или `opacity === 0` или `visible === false`.
-- Эксплицитно пропускается `hover-zone` и `drag-placeholder`, чтобы события наведения мыши передавались в док без помех.
+**Root Cause:**  
+Cogl concatenates fragment shader declarations when multiple shader effects exist in the pipeline.
+
+**Solution:**  
+Wrapped uniform declarations in `#ifndef PASYNKOV_TINT_UNIFORMS` preprocessor guards.
 
 ---
 
-## ✅ БАГ 11 — Интенсивность не изменялась на существующих окнах при движении ползунка
+## ✅ ISSUE 8 — Alt+Tab Switcher & Dock Coverage
 
-**Когда:** Двигать ползунок интенсивности в меню или крутить колесо мыши при включённом фильтре.
+**Trigger:** Pressing Alt+Tab or hovering over side docks.
 
-**Симптом:**
-Число процентов меняется в меню, но сам визуальный фильтр на существующих окнах не перерисовывается с новой интенсивностью.
+**Symptom:**  
+Alt+Tab popup switcher list displayed in unfiltered color.
 
-**Причина:**
-В `effectManager.js` метод `enableEffect()` обновлял внутреннее поле `this._currentIntensity = newIntensity`, но проверял, прикреплён ли уже эффект к акторам. Так как акторы уже имелись в `_windowEffects` и `_chromeEffects`, повторное добавление пропускалось, а метод `_refreshAll()` не вызывался. Значения uniform-переменных `u_intensity` в GLSL-шейдере оставались старыми.
-
-**Решение:**
-В `enableEffect()` добавлен принудительный вызов `this._refreshAll()`, который пересчитывает параметров шейдера и загружает их через `set_uniform_float` во все активные эффекты.
+**Solution:**  
+Expanded `_getChromeActors()` to inspect `Main.layoutManager._trackedActors`, `uiGroup`, and `modalDialogGroup` for `switcher-popup` and dock containers.
 
 ---
 
-## Быстрый справочник
+## ✅ ISSUE 9 — System Lag & Invisible Hover Zone Blockage
 
-### Структура расширения
-```
-extension.js          — lifecycle (enable/disable), настройки, восстановление
-lib/effectManager.js  — применение Clutter-эффектов, watchdog
-lib/indicator.js      — иконка в трее, popup-меню, скролл интенсивности
-lib/presets.js        — список пресетов и функции цикла
-prefs.js              — окно настроек (GTK4 + Adwaita)
-schemas/              — GSettings XML + скомпилированная схема
-```
+**Trigger:** Attaching offscreen effects to invisible UI elements.
 
-### Команды разработки
-```bash
-# Синхронизировать проект → расширение
-rsync -av --exclude='.git' --exclude='Pasynkov_Tint_TZ.md' \
-  "/home/fedor/projects/Pasynkov Tint/" \
-  "/home/fedor/.local/share/gnome-shell/extensions/pasynkov-tint@fedor-pasynkov.ru/"
+**Symptom:**  
+Desktop experienced lag, and `right-dock` stopped sliding out on edge hover.
 
-# Перекомпилировать схемы
-glib-compile-schemas "/home/fedor/projects/Pasynkov Tint/schemas/"
+**Root Cause:**  
+`right-dock-hover-zone` is an invisible touch zone with `width = 0`. Attaching offscreen effects to 0-sized actors caused 60 Cogl assertion failures per second (`width > 0 && height > 0` failed).
 
-# Перезагрузить расширение (без выхода из сессии)
-gnome-extensions disable pasynkov-tint@fedor-pasynkov.ru && sleep 1 && gnome-extensions enable pasynkov-tint@fedor-pasynkov.ru
+**Solution:**  
+Added `_isEligibleActor(actor)` helper checking `get_transformed_size() >= 2px`, `opacity > 0`, and filtering out `hover-zone` elements.
 
-# Смотреть логи в реальном времени
-journalctl /usr/bin/gnome-shell -f | grep -i "pasynkov\|offscreen\|texture"
+---
 
-# Экстренное отключение (если серый экран)
-mv ~/.local/share/gnome-shell/extensions/pasynkov-tint@fedor-pasynkov.ru \
-   ~/.local/share/gnome-shell/extensions/pasynkov-tint@fedor-pasynkov.ru.disabled
+## ✅ ISSUE 10 — Intensity Slider Not Updating Active Effects
+
+**Trigger:** Moving intensity slider or scrolling mouse wheel on top bar icon.
+
+**Symptom:**  
+Menu label updated percentage, but active windows didn't update visual tint strength.
+
+**Root Cause:**  
+`enableEffect()` updated internal intensity variable but skipped calling `_refreshAll()` for already-attached effects.
+
+**Solution:**  
+Added `this._refreshAll()` call inside `enableEffect()` to immediately upload updated `u_intensity` uniforms via `set_uniform_float`.
+
+---
+
+## Quick Reference
+
+### Extension Architecture
+```text
+extension.js          — Lifecycle management (enable/disable), settings bindings
+lib/effectManager.js  — Per-actor GLSL shader manager & watchdog
+lib/indicator.js      — Top bar panel menu, scroll handler, OSD
+lib/presets.js        — Preset definitions (Amber, Green, Cyan, Sepia, Grayscale)
+prefs.js              — Preferences GTK4 + Libadwaita window
+schemas/              — GSettings XML schema & compiled binary
 ```
