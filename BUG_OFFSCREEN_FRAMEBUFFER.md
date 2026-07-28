@@ -34,6 +34,9 @@ gnome-shell: Failed to create offscreen effect framebuffer:
 - **Причина:** GLSL-ошибка `u_intensity redeclared` при создании нескольких экземпляров эффекта.
 - **Решение:** Обернули определение uniform в `#ifndef PASYNKOV_TINT_UNIFORMS`.
 
-### 🟡 Баг 8: Overview (Super/Win) и `right-dock`
-- **Overview:** ✅ **ИСПРАВЛЕНО.** Прикрепление к `Main.overview._overview` / `_controls` полностью заработало.
-- **`right-dock` / Сторонние доки:** 🟡 **В ПРОЦЕССЕ.** Причина: итерация по `_chrome` требовала доступа к полю `_trackedActors` (массив акторов `LayoutManager.Chrome`). Решение внесено в `effectManager.js`.
+### ✅ Баг 8: Overview (Super/Win) и `right-dock` (РЕШЕНО)
+- **Overview:** ✅ **ИСПРАВЛЕНО.**
+- **`right-dock` / Сторонние доки:** ✅ **ИСПРАВЛЕНО.** 
+
+### 🟡 Баг 9: Alt+Tab switcher (В процессе)
+- **Alt+Tab:** 🟡 Панель переключения AltTab создается динамически при нажатии клавиш. Решение: отслеживать `switcher-popup` / `modalDialogGroup` в `effectManager.js`.
