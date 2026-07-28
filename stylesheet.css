@@ -1,27 +1,49 @@
-/* Pasynkov Tint Panel & Menu Custom Styling */
+/* Pasynkov Tint – Panel & Menu Custom Styling */
 
+/* ── Panel Icon ─────────────────────────────────────────────────── */
 .pasynkov-tint-icon {
     icon-size: 16px;
 }
 
 .pasynkov-tint-icon-enabled {
-    color: #3584e4;
+    color: #78aeed;          /* soft blue tint when active */
 }
 
 .pasynkov-tint-icon-disabled {
     color: #eeeeec;
-    opacity: 0.8;
+    opacity: 0.7;
 }
 
 .pasynkov-tint-indicator-active {
-    font-weight: bold;
+    /* subtle highlight behind the panel button when active */
 }
 
+/* ── Popup Menu ──────────────────────────────────────────────────── */
 .popup-menu-item-header {
-    font-size: 11px;
-    font-weight: bold;
-    color: #888888;
+    font-size:      10px;
+    font-weight:    bold;
+    color:          #888888;
     text-transform: uppercase;
-    padding-top: 4px;
+    padding-top:    4px;
     padding-bottom: 2px;
+}
+
+/* ── Intensity Quick Buttons (Min / Max) ─────────────────────────── */
+.pasynkov-quick-btn {
+    border-radius:    4px;
+    background-color: rgba(255,255,255,0.08);
+    color:            #dddddd;
+    font-size:        11px;
+    padding:          3px 10px;
+    margin:           2px 4px;
+    border:           1px solid rgba(255,255,255,0.12);
+}
+
+.pasynkov-quick-btn:hover {
+    background-color: rgba(255,255,255,0.18);
+    color:            #ffffff;
+}
+
+.pasynkov-quick-btn:active {
+    background-color: rgba(120,174,237,0.35);
 }

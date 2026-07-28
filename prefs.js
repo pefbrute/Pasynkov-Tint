@@ -1,176 +1,202 @@
 /**
- * Pasynkov Tint - Preferences Window
- * Implements GTK4 / Libadwaita settings dialog.
+ * Pasynkov Tint – Preferences Window
+ * GTK4 / Libadwaita settings dialog for GNOME Shell 45+.
+ *
+ * Note: In GNOME 45+, initTranslations() is called automatically by the shell
+ * before fillPreferencesWindow(). Do NOT call it again here.
  */
 
 const { Adw, Gtk, Gio, GObject } = imports.gi;
+const ExtensionUtils = imports.misc.extensionUtils;
 
-let ExtensionUtils;
-try {
-    ExtensionUtils = imports.misc.extensionUtils;
-} catch (e) {
-    ExtensionUtils = null;
-}
-
-function _(str) {
-    if (ExtensionUtils && ExtensionUtils.gettext) {
-        return ExtensionUtils.gettext(str);
+function _(s) {
+    try {
+        return ExtensionUtils.gettext(s);
+    } catch (_) {
+        return s;
     }
-    return str;
 }
 
+/** Called by GNOME Shell before fillPreferencesWindow(). */
 function init() {
-    if (ExtensionUtils && ExtensionUtils.initTranslations) {
-        ExtensionUtils.initTranslations();
-    }
+    // initTranslations is already called by the shell; nothing needed here.
 }
 
 /**
- * Creates a Switch row compatible with both Libadwaita 1.0 (GNOME 42) and Libadwaita 1.4+ (GNOME 45+)
+ * Build a switch row that works on both libadwaita 1.0 (GNOME 43–44) and
+ * libadwaita 1.4+ (GNOME 45+, has Adw.SwitchRow).
  */
-function createSwitchRow(title, subtitle, settings, key) {
-    if (Adw.SwitchRow) {
+function _makeSwitchRow(title, subtitle, settings, key) {
+    if (typeof Adw.SwitchRow === 'function') {
         const row = new Adw.SwitchRow({ title, subtitle });
         if (settings) {
             settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
         }
         return row;
-    } else {
-        const row = new Adw.ActionRow({ title, subtitle });
-        const toggle = new Gtk.Switch({
-            valign: Gtk.Align.CENTER
-        });
-        if (settings) {
-            settings.bind(key, toggle, 'active', Gio.SettingsBindFlags.DEFAULT);
-        }
-        row.add_suffix(toggle);
-        row.activatable_widget = toggle;
-        return row;
     }
+    // Fallback: ActionRow + Gtk.Switch suffix
+    const row    = new Adw.ActionRow({ title, subtitle });
+    const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
+    if (settings) {
+        settings.bind(key, toggle, 'active', Gio.SettingsBindFlags.DEFAULT);
+    }
+    row.add_suffix(toggle);
+    row.activatable_widget = toggle;
+    return row;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
 function fillPreferencesWindow(window) {
-    const settings = (ExtensionUtils && ExtensionUtils.getSettings) ? ExtensionUtils.getSettings() : null;
+    const settings = ExtensionUtils.getSettings();
 
-    // ==========================================
-    // Page 1: General Settings (Основное)
-    // ==========================================
+    // ══════════════════════════════════════════════════════
+    //  Page 1 · General
+    // ══════════════════════════════════════════════════════
     const generalPage = new Adw.PreferencesPage({
-        title: _('General'),
-        icon_name: 'preferences-system-symbolic'
+        title:     _('General'),
+        icon_name: 'preferences-system-symbolic',
     });
     window.add(generalPage);
 
-    const generalGroup = new Adw.PreferencesGroup({
-        title: _('Behavior'),
-        description: _('Configure startup and interaction options')
+    // ── Group: Filter ─────────────────────────────────────
+    const filterGroup = new Adw.PreferencesGroup({
+        title:       _('Color Filter'),
+        description: _('Select a visual preset and adjust its strength'),
     });
-    generalPage.add(generalGroup);
+    generalPage.add(filterGroup);
 
-    // Switch: Restore effect after login
-    const restoreRow = createSwitchRow(
-        _('Restore effect after login'),
-        _('Automatically apply saved color filter on user startup'),
-        settings,
-        'restore-state'
-    );
-    generalGroup.add(restoreRow);
+    // Preset combo
+    const presetValues = ['off', 'amber', 'green', 'cyan', 'sepia', 'grayscale'];
+    const presetLabels = [
+        _('Off'),
+        _('Amber – warm yellow (reduces blue light)'),
+        _('Green – vintage CRT monochrome'),
+        _('Cyan – cool high-contrast blue'),
+        _('Sepia – classic warm photo tint'),
+        _('Grayscale – true black & white'),
+    ];
 
-    // Combo: Primary Click Action
-    const clickActionRow = new Adw.ComboRow({
-        title: _('Primary Click Action'),
-        subtitle: _('Behavior when clicking top bar indicator'),
-        model: Gtk.StringList.new([_('Cycle Presets'), _('Toggle Effect'), _('Open Menu')])
+    const presetRow = new Adw.ComboRow({
+        title:    _('Color Preset'),
+        subtitle: _('Active desktop color filter'),
+        model:    Gtk.StringList.new(presetLabels),
     });
-    
-    const clickValues = ['cycle', 'toggle', 'menu'];
-    const currentAction = settings ? settings.get_string('click-action') : 'cycle';
-    const selectedIdx = clickValues.indexOf(currentAction);
-    if (selectedIdx !== -1) {
-        clickActionRow.selected = selectedIdx;
-    }
 
-    clickActionRow.connect('notify::selected', () => {
-        const val = clickValues[clickActionRow.selected];
-        if (val && settings) {
-            settings.set_string('click-action', val);
+    const curPreset  = settings.get_string('preset');
+    const presetIdx  = presetValues.indexOf(curPreset);
+    presetRow.selected = presetIdx !== -1 ? presetIdx : 0;
+
+    presetRow.connect('notify::selected', () => {
+        const val = presetValues[presetRow.selected];
+        if (!val) return;
+        settings.set_string('preset', val);
+        settings.set_boolean('effect-enabled', val !== 'off');
+        // Grayscale: max intensity for true B&W
+        if (val === 'grayscale') {
+            settings.set_double('intensity', 1.0);
         }
     });
-    generalGroup.add(clickActionRow);
+    filterGroup.add(presetRow);
 
-    // Switch: Show OSD Notifications
-    const osdRow = createSwitchRow(
+    // Intensity scale row
+    const intensityRow = new Adw.ActionRow({
+        title:    _('Intensity'),
+        subtitle: _('5% = faint tint · 100% = full desaturation (true B&W for Grayscale)'),
+    });
+    const scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.05, 1.0, 0.05);
+    scale.set_draw_value(true);
+    scale.set_value_pos(Gtk.PositionType.RIGHT);
+    scale.set_hexpand(true);
+    scale.set_valign(Gtk.Align.CENTER);
+    scale.set_value(settings.get_double('intensity'));
+    scale.connect('value-changed', () => {
+        const val = Math.round(scale.get_value() * 20) / 20;
+        settings.set_double('intensity', val);
+    });
+    // Keep slider in sync when changed externally (e.g. from panel indicator)
+    settings.connect('changed::intensity', () => {
+        scale.set_value(settings.get_double('intensity'));
+    });
+    intensityRow.add_suffix(scale);
+    filterGroup.add(intensityRow);
+
+    // ── Group: Behaviour ──────────────────────────────────
+    const behavGroup = new Adw.PreferencesGroup({
+        title: _('Behaviour'),
+    });
+    generalPage.add(behavGroup);
+
+    behavGroup.add(_makeSwitchRow(
+        _('Restore effect after login'),
+        _('Automatically re-apply the active filter on startup'),
+        settings, 'restore-state'
+    ));
+
+    const clickRow = new Adw.ComboRow({
+        title:    _('Primary Click Action'),
+        subtitle: _('What happens when you left-click the panel icon'),
+        model:    Gtk.StringList.new([_('Cycle Presets'), _('Toggle Effect'), _('Open Menu')]),
+    });
+    const clickValues  = ['cycle', 'toggle', 'menu'];
+    const curAction    = settings.get_string('click-action');
+    const clickIdx     = clickValues.indexOf(curAction);
+    clickRow.selected  = clickIdx !== -1 ? clickIdx : 0;
+    clickRow.connect('notify::selected', () => {
+        const val = clickValues[clickRow.selected];
+        if (val) settings.set_string('click-action', val);
+    });
+    behavGroup.add(clickRow);
+
+    behavGroup.add(_makeSwitchRow(
         _('Show Intensity OSD'),
-        _('Display screen overlay when scrolling intensity wheel'),
-        settings,
-        'show-osd'
-    );
-    generalGroup.add(osdRow);
+        _('On-screen display when scrolling intensity with the mouse wheel'),
+        settings, 'show-osd'
+    ));
 
-    // ==========================================
-    // Page 2: Presets Information (Пресеты)
-    // ==========================================
+    // ══════════════════════════════════════════════════════
+    //  Page 2 · Presets
+    // ══════════════════════════════════════════════════════
     const presetsPage = new Adw.PreferencesPage({
-        title: _('Presets'),
-        icon_name: 'color-select-symbolic'
+        title:     _('Presets'),
+        icon_name: 'color-select-symbolic',
     });
     window.add(presetsPage);
 
     const presetsGroup = new Adw.PreferencesGroup({
-        title: _('Built-in Color Filters'),
-        description: _('Overview of default visual filters available in Pasynkov Tint')
+        title:       _('Built-in Color Filters'),
+        description: _('Descriptions of each available visual filter'),
     });
     presetsPage.add(presetsGroup);
 
-    const presetInfoList = [
-        { name: _('Amber'), desc: _('Warm amber-yellow tint reducing harsh blue light') },
-        { name: _('Green'), desc: _('Vintage monochrome green CRT display aesthetic') },
-        { name: _('Cyan'), desc: _('Cool cyan-blue tint for high contrast focus') },
-        { name: _('Sepia'), desc: _('Classic warm sepia photo filter matrix') },
-        { name: _('Grayscale'), desc: _('Monochrome desaturation removing color distraction') }
-    ];
-
-    presetInfoList.forEach(p => {
-        const row = new Adw.ActionRow({
-            title: p.name,
-            subtitle: p.desc
-        });
-        presetsGroup.add(row);
+    [
+        ['⚫  ' + _('Off'),       _('No filter – normal rendering')],
+        ['🟡  ' + _('Amber'),     _('Warm amber-yellow tint; reduces harsh blue light emission')],
+        ['🟢  ' + _('Green'),     _('Vintage monochrome green CRT display aesthetic')],
+        ['🔵  ' + _('Cyan'),      _('Cool cyan-blue tint for high-contrast focus mode')],
+        ['🟤  ' + _('Sepia'),     _('Classic warm sepia photo matrix – nostalgic look')],
+        ['⬜  ' + _('Grayscale'), _('Full black & white mode (set intensity to 100% for pure B&W)')],
+    ].forEach(([name, desc]) => {
+        presetsGroup.add(new Adw.ActionRow({ title: name, subtitle: desc }));
     });
 
-    // ==========================================
-    // Page 3: About (О расширении)
-    // ==========================================
+    // ══════════════════════════════════════════════════════
+    //  Page 3 · About
+    // ══════════════════════════════════════════════════════
     const aboutPage = new Adw.PreferencesPage({
-        title: _('About'),
-        icon_name: 'help-about-symbolic'
+        title:     _('About'),
+        icon_name: 'help-about-symbolic',
     });
     window.add(aboutPage);
 
     const aboutGroup = new Adw.PreferencesGroup();
     aboutPage.add(aboutGroup);
 
-    const nameRow = new Adw.ActionRow({
-        title: 'Pasynkov Tint',
-        subtitle: _('Version 0.1.0 MVP — Desktop Color Filters for GNOME Shell')
+    [
+        ['Pasynkov Tint',  _('Version 0.1.0 – Desktop Color Filters for GNOME Shell')],
+        [_('Author'),      'Fedor Pasynkov'],
+        [_('License'),     'GNU General Public License v3.0 or later (GPL-3.0-or-later)'],
+        [_('Inspired by'), _('Tint All extension by Amaro Vita')],
+    ].forEach(([title, subtitle]) => {
+        aboutGroup.add(new Adw.ActionRow({ title, subtitle }));
     });
-    aboutGroup.add(nameRow);
-
-    const authorRow = new Adw.ActionRow({
-        title: _('Author'),
-        subtitle: 'Fedor Pasynkov'
-    });
-    aboutGroup.add(authorRow);
-
-    const licenseRow = new Adw.ActionRow({
-        title: _('License'),
-        subtitle: 'GNU General Public License v3.0 or later (GPL-3.0-or-later)'
-    });
-    aboutGroup.add(licenseRow);
-
-    const creditRow = new Adw.ActionRow({
-        title: _('Acknowledgements'),
-        subtitle: _('Inspired by the Tint All extension by Amaro Vita')
-    });
-    aboutGroup.add(creditRow);
 }
