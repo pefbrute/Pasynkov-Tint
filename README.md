@@ -43,27 +43,32 @@ For full technical write-ups and bug resolution history, see:
 
 ---
 
-## 🚀 Installation & Setup
+## 🚀 Quick Installation
 
-### Local Installation
+### Option 1: One-Liner (Recommended)
 
-1. **Clone or copy extension files into user extensions directory:**
+Run this single command in your terminal to install, compile schemas, and enable Pasynkov Tint instantly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/your-username/pasynkov-tint/main/install.sh | bash
+```
+
+---
+
+### Option 2: Manual Installation
+
+1. **Clone the repository:**
    ```bash
-   mkdir -p ~/.local/share/gnome-shell/extensions/pasynkov-tint@fedor-pasynkov.ru
-   cp -r * ~/.local/share/gnome-shell/extensions/pasynkov-tint@fedor-pasynkov.ru/
+   git clone https://github.com/your-username/pasynkov-tint.git
+   cd pasynkov-tint
    ```
 
-2. **Compile GSettings schema:**
+2. **Run installer script:**
    ```bash
-   glib-compile-schemas ~/.local/share/gnome-shell/extensions/pasynkov-tint@fedor-pasynkov.ru/schemas/
+   ./install.sh
    ```
 
-3. **Enable extension:**
-   ```bash
-   gnome-extensions enable pasynkov-tint@fedor-pasynkov.ru
-   ```
-
-*(On Wayland, restart GNOME Shell or log out/in to apply newly installed extensions).*
+*(On Wayland, restart GNOME Shell or log out/in to apply newly installed extensions if needed).*
 
 ---
 
