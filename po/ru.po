@@ -1,0 +1,117 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: pasynkov-tint 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-28 22:00+0300\n"
+"PO-Revision-Date: 2026-07-28 22:00+0300\n"
+"Last-Translator: Fedor Pasynkov\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Effect Enabled"
+msgstr "Эффект включён"
+
+msgid "Presets"
+msgstr "Пресеты"
+
+msgid "Off"
+msgstr "Выключено"
+
+msgid "Amber"
+msgstr "Янтарный"
+
+msgid "Green"
+msgstr "Зелёный"
+
+msgid "Cyan"
+msgstr "Голубой"
+
+msgid "Sepia"
+msgstr "Сепия"
+
+msgid "Grayscale"
+msgstr "Чёрно-белый"
+
+msgid "Intensity"
+msgstr "Интенсивность"
+
+msgid "Preferences"
+msgstr "Настройки"
+
+msgid "Reset All Filters"
+msgstr "Сбросить все фильтры"
+
+msgid "General"
+msgstr "Основное"
+
+msgid "Behavior"
+msgstr "Поведение"
+
+msgid "Configure startup and interaction options"
+msgstr "Настройка параметров запуска и взаимодействия"
+
+msgid "Restore effect after login"
+msgstr "Восстанавливать эффект после входа"
+
+msgid "Automatically apply saved color filter on user startup"
+msgstr "Автоматически применять сохранённый фильтр при входе пользователя"
+
+msgid "Primary Click Action"
+msgstr "Действие основного нажатия"
+
+msgid "Behavior when clicking top bar indicator"
+msgstr "Поведение при нажатии на значок панели"
+
+msgid "Cycle Presets"
+msgstr "Переключать пресеты"
+
+msgid "Toggle Effect"
+msgstr "Включать/выключать эффект"
+
+msgid "Open Menu"
+msgstr "Открывать меню"
+
+msgid "Show Intensity OSD"
+msgstr "Показывать интенсивность на экране"
+
+msgid "Display screen overlay when scrolling intensity wheel"
+msgstr "Отображать экранное уведомление при прокрутке колёсика"
+
+msgid "Built-in Color Filters"
+msgstr "Встроенные фильтры"
+
+msgid "Overview of default visual filters available in Pasynkov Tint"
+msgstr "Обзор встроенных цветовых фильтров Pasynkov Tint"
+
+msgid "Warm amber-yellow tint reducing harsh blue light"
+msgstr "Тёплый янтарно-жёлтый оттенок для снижения синего света"
+
+msgid "Vintage monochrome green CRT display aesthetic"
+msgstr "Стиль старого зелёного монохромного монитора"
+
+msgid "Cool cyan-blue tint for high contrast focus"
+msgstr "Холодный голубой оттенок для высокой контрастности"
+
+msgid "Classic warm sepia photo filter matrix"
+msgstr "Классический фильтр сепии в стиле старого фото"
+
+msgid "Monochrome desaturation removing color distraction"
+msgstr "Полное обесцвечивание интерфейса"
+
+msgid "About"
+msgstr "О расширении"
+
+msgid "Author"
+msgstr "Автор"
+
+msgid "License"
+msgstr "Лицензия"
+
+msgid "Acknowledgements"
+msgstr "Благодарности"
+
+msgid "Inspired by the Tint All extension by Amaro Vita"
+msgstr "Вдохновлено расширением Tint All (автор: Amaro Vita)"

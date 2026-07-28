@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.pasynkov-tint" path="/org/gnome/shell/extensions/pasynkov-tint/">
+    <key name="effect-enabled" type="b">
+      <default>false</default>
+      <summary>Effect Enabled</summary>
+      <description>Whether the color filter effect is active on the desktop.</description>
+    </key>
+    <key name="preset" type="s">
+      <default>'amber'</default>
+      <summary>Color Preset</summary>
+      <description>Current active color filter preset (off, amber, green, cyan, sepia, grayscale).</description>
+    </key>
+    <key name="intensity" type="d">
+      <default>0.65</default>
+      <summary>Filter Intensity</summary>
+      <description>Effect intensity strength scaled from 0.0 to 1.0.</description>
+    </key>
+    <key name="restore-state" type="b">
+      <default>false</default>
+      <summary>Restore State After Login</summary>
+      <description>Whether to automatically restore active effect when user logs in.</description>
+    </key>
+    <key name="click-action" type="s">
+      <default>'cycle'</default>
+      <summary>Primary Click Action</summary>
+      <description>Behavior of primary click on top panel indicator (cycle, toggle, menu).</description>
+    </key>
+    <key name="show-osd" type="b">
+      <default>true</default>
+      <summary>Show OSD Notification</summary>
+      <description>Whether to show on-screen display notifications when intensity is changed.</description>
+    </key>
+  </schema>
+</schemalist>

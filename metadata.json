@@ -1,0 +1,17 @@
+{
+  "uuid": "pasynkov-tint@fedor-pasynkov.ru",
+  "name": "Pasynkov Tint",
+  "description": "Apply adjustable color filters to the entire GNOME desktop interface.",
+  "shell-version": [
+    "42",
+    "42.9",
+    "43",
+    "44",
+    "45",
+    "46"
+  ],
+  "version": 1,
+  "settings-schema": "org.gnome.shell.extensions.pasynkov-tint",
+  "gettext-domain": "pasynkov-tint",
+  "url": "https://github.com/fedor-pasynkov/pasynkov-tint"
+}
