@@ -45,13 +45,16 @@ class PasynkovTintExtension {
     }
 
     _restoreState() {
-        const enabled = this._settings.get_boolean('effect-enabled');
+        const enabled      = this._settings.get_boolean('effect-enabled');
+        const restoreState = this._settings.get_boolean('restore-state');
 
-        // Always apply the saved state. The 'restore-state' setting controls
-        // whether the user WANTS the effect to survive a session restart —
-        // if they've toggled the extension back on, honour effect-enabled directly.
-        if (enabled) {
+        // Respect 'restore-state': if false, don't auto-enable on startup
+        if (restoreState && enabled) {
             this._applyCurrentSettings();
+        } else if (!restoreState && enabled) {
+            // User opted out of state persistence: turn off on startup
+            this._settings.set_boolean('effect-enabled', false);
+            this._effectManager.disableEffect();
         } else {
             this._effectManager.disableEffect();
         }
@@ -93,5 +96,8 @@ class PasynkovTintExtension {
 }
 
 function init(meta) {
-    return new PasynkovTintExtension(meta.uuid);
+    const ext = new PasynkovTintExtension(meta.uuid);
+    ext.path = meta.path;
+    ext.dir = meta.dir;
+    return ext;
 }
