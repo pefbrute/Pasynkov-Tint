@@ -282,6 +282,62 @@ _setPointerInteractionActive(active) {
 
 ---
 
+## ✅ ISSUE 17 — Custom Desktop IDs & Null lookup_app Fallback Failure
+
+**Trigger:** Extension initialization when AppFavorites is uninitialized or returning empty `[]`.
+
+**Symptom:**  
+Favorite app icons fail to render at startup or reload.
+
+**Root Cause:**  
+`Shell.AppSystem.lookup_app(id)` returns `null` for user-installed or custom `.desktop` files (e.g. `antigravity.desktop`, `hiddify-root.desktop`). Filtering `null` values resulted in `favs = []`.
+
+**Solution:**  
+Enhanced the fallback to use `Shell.App.new_for_desktop_id(id)` when `lookup_app(id)` returns `null`:
+```javascript
+favs = favIds.map(id => {
+    if (!id) return null;
+    let app = appSys ? appSys.lookup_app(id) : null;
+    if (!app && typeof Shell.App.new_for_desktop_id === 'function') {
+        try { app = Shell.App.new_for_desktop_id(id); } catch (_) {}
+    }
+    return app;
+}).filter(app => app !== null && app !== undefined);
+```
+
+---
+
+## ✅ ISSUE 18 — Disposed C Object Reference Leak on `_appGridBtn` & `_appsSeparator`
+
+**Trigger:** Disabling and re-enabling extension during GNOME Shell session.
+
+**Symptom:**  
+Log error: `Object St.Widget, has been already disposed — impossible to access it` at `extension.js:1854`, wiping all icons from dock.
+
+**Root Cause:**  
+`disable()` destroyed `_dockContainer` (which recursively disposed `_appGridBtn` and `_appsSeparator`), but did not reset JS references `this._appGridBtn = null` and `this._appsSeparator = null`. On re-enable, calling methods on disposed C objects crashed `_syncApps()`.
+
+**Solution:**  
+1. Set `this._appGridBtn = null` and `this._appsSeparator = null` in `disable()`.
+2. Added C object validity checks before method invocations in `_syncApps()`.
+
+---
+
+## ✅ ISSUE 19 — Pango Markup Syntax Crash from Truncating App/Window Titles
+
+**Trigger:** Preview generation or tooltip creation for windows or apps containing ampersands `&`.
+
+**Symptom:**  
+Log error: `Failed to set the markup of the actor '<unnamed>[<ClutterText>]': Error on line 1: Entity did not end with a semicolon`.
+
+**Root Cause:**  
+Truncating raw title strings with `.substring(0, 21)` BEFORE calling `GLib.markup_escape_text()` cut markup entities in half (like `&amp;` cut to `&am`), causing Pango text parser to crash inside `St.Label`.
+
+**Solution:**  
+Truncate plain text FIRST, and then apply `GLib.markup_escape_text()` to the truncated string.
+
+---
+
 ## Quick Reference
 
 ### Extension Architecture

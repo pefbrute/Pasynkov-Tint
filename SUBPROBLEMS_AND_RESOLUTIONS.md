@@ -64,3 +64,57 @@ favs = favIds.map(id => {
 - **Log Evidence:** `_syncApps()` terminating before log audit evaluation.
 - **Mechanism:** `St.BoxLayout` does not expose `get_child_at_index(index)` as a native GJS method. Calling it caused evaluation errors during child position checks.
 - **Resolution:** Replaced `get_child_at_index(index)` with native GJS child array indexing `this._appsBox.get_children()[expectedIndex]`.
+
+---
+
+### 8. SUBPROBLEM-08: Pango Markup Syntax Crash from Truncating App/Window Titles
+- **Log Evidence:** `Failed to set the markup of the actor '<unnamed>[<ClutterText>]': Error on line 1: Entity did not end with a semicolon`.
+- **Mechanism:** Truncating raw window/app titles with `.substring(0, 21)` cut Pango markup entities in half (like `&amp;` cut to `&am`), causing `St.Label` creation to throw an unhandled exception inside GJS.
+- **Resolution:** Truncate raw plain text FIRST, and then apply `GLib.markup_escape_text()` to the truncated string:
+```javascript
+let rawTitle = win.get_title() || this.app.get_name() || '';
+if (rawTitle.length > 24) rawTitle = rawTitle.substring(0, 21) + '...';
+let winTitle = GLib.markup_escape_text(rawTitle, -1);
+```
+
+---
+
+### 9. SUBPROBLEM-09: Disposed C Object Reference Leak on `_appGridBtn` & `_appsSeparator`
+- **Log Evidence:** `Object St.Widget, has been already disposed — impossible to access it` at `extension.js:1854`.
+- **Mechanism:** `disable()` destroyed `_dockContainer` (which recursively disposed its child actors `_appGridBtn` and `_appsSeparator`), but did NOT reset `this._appGridBtn` or `this._appsSeparator` references to `null`. On extension re-enable, `_syncApps()` called methods on the disposed C objects, triggering a fatal GJS exception that aborted `_syncApps()` before favorite icons were initialized.
+- **Resolution:**
+  - Explicitly nullified `_appGridBtn` and `_appsSeparator` in `disable()`.
+  - Added C object validity checks in `_syncApps()`:
+```javascript
+if (this._appGridBtn) {
+    try { let p = this._appGridBtn.get_parent(); } catch (_) { this._appGridBtn = null; }
+}
+if (this._appsSeparator) {
+    try { let p = this._appsSeparator.get_parent(); } catch (_) { this._appsSeparator = null; }
+}
+```
+
+---
+
+---
+
+### 11. SUBPROBLEM-11: Narrow 4px Hover Zone Preventing Autohide Activation
+- **Log Evidence:** Hover zone failing to trigger `_showDock()` on quick cursor movement near screen edge.
+- **Mechanism:** A 4px hover zone was too narrow to capture cursor enter events before `show-delay` timer evaluated hover state on high-DPI displays.
+- **Resolution:** Expanded `_hoverZone` width from `4px` to `16px` on the right edge of the monitor.
+
+---
+
+### 13. SUBPROBLEM-13: Focus Stealing Prevention Blocking Window Raise
+- **Log Evidence:** `vfunc_clicked` firing and calling `activateOrMinimize()`, but window failing to raise or focus.
+- **Mechanism:** Passing stale/zero `event.get_time()` timestamps to `Main.activateWindow(win, time)` triggered Mutter's Focus Stealing Prevention, causing Mutter to ignore the activation call.
+- **Resolution:** Replaced event timestamp with `global.get_current_time()`, and added explicit `ws.activate(now)`, `targetWin.unminimize()`, `Main.activateWindow(targetWin, now)`, `targetWin.raise()`, and `targetWin.focus(now)` sequence.
+
+---
+
+### 15. SUBPROBLEM-15: Stolen Tray Icons & Status Box Pushing Favorites Off-Screen
+- **Log Evidence:** Favorites initially visible at startup, then disappearing once `_stealTrayIcons()` logged `Stole 13 indicator icons from top panel`.
+- **Mechanism:** `_trayBox` (364px) and `_statusBox` (180px) were positioned at the TOP of `_dockContainer` above `_appsBox`. When 13 tray icons loaded, the 544px top offset pushed `_appsBox` (all 11 favorite icons) completely off the bottom edge of the monitor. Additionally, setting `Main.panel.set_height(0)` broke top panel chrome allocation.
+- **Resolution:**
+  - Re-ordered `_dockContainer` child hierarchy so `_appsBox` is positioned FIRST at the very top of the dock, giving favorite icons top priority.
+  - Removed `Main.panel.set_height(0)` to preserve GNOME Shell top bar layout stability.
