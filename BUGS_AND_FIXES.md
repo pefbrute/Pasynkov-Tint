@@ -192,6 +192,96 @@ Implemented single-flight `_queueSync()` debouncer using `GLib.source_remove()` 
 
 ---
 
+## ✅ ISSUE 12 — Preview Popup Hover Storm Interception (Group C2 Click Loss)
+
+**Trigger:** Moving mouse rapidly over dock icons.
+
+**Symptom:**  
+Clicking on an icon rendered 0 reaction (`button-press` event log was 100% missing on the target icon actor).
+
+**Root Cause:**  
+Moving the mouse across icons spawned independent hover timers for each icon, spawning preview popups under/over the cursor. The preview overlay captured the mouse click, blocking `button-press` from reaching `DockAppIcon`.
+
+**Solution:**  
+Implemented a single dock-wide `_scheduleWindowPreview` timer with a 350ms delay and an incrementing `_previewToken` guard. On hover leave or `button-press`, `_cancelPreviewShow()` instantly invalidates pending timers. Positioned preview popups strictly to the left of the dock with a 12px gap (`posX = stageX - popupW - 12`), guaranteeing zero bounding rectangle overlap.
+
+---
+
+## ✅ ISSUE 13 — Stale Array Index Mutation in `_syncApps()` (Favorite Icons Disappearing)
+
+**Trigger:** Running dock for several hours with window creation/destruction.
+
+**Symptom:**  
+Favorite application icons disappeared from the dock or got repositioned out of view.
+
+**Root Cause:**  
+`let currentChildren = this._appsBox.get_children()` was computed ONCE prior to the re-ordering loop. When `set_child_at_index(item, expectedIndex)` was called inside the loop, Clutter dynamically altered the container's child order, causing subsequent loop iterations to compare against a stale `currentChildren` array and place actors into corrupted indices.
+
+**Solution:**  
+Replaced stale `currentChildren` snapshot with live `this._appsBox.get_child_at_index(expectedIndex)` check on every iteration:
+```javascript
+let currentItem = this._appsBox.get_child_at_index(expectedIndex);
+if (currentItem !== item) {
+    this._appsBox.set_child_at_index(item, expectedIndex);
+}
+```
+
+---
+
+## ✅ ISSUE 14 — GJS Class Prototype Caching in Wayland Session
+
+**Trigger:** Reloading extensions via `gnome-extensions disable/enable`.
+
+**Symptom:**  
+GNOME Shell continued executing old class handlers and old method implementations even after editing `extension.js`.
+
+**Root Cause:**  
+GJS caches registered GObject classes by `GTypeName`. With a static `'DockAppIcon'` name, GJS ignored re-registration within the same `gnome-shell` PID lifetime.
+
+**Solution:**  
+Made `GTypeName` dynamic per reload:
+```javascript
+## ✅ ISSUE 15 — Transient Empty AppFavorites Array Destroys Pinned Icons
+
+**Trigger:** GSettings/DBus state update during desktop operation.
+
+**Symptom:**  
+Favorite icons suddenly disappear from the dock layout.
+
+**Root Cause:**  
+When `AppFavorites.getAppFavorites().getFavorites()` returned an empty array `[]` during GSettings sync, `orderedTargetApps` contained only running apps. `_syncApps()` then evaluated `if (!addedSet.has(appId))` for all 11 favorites, found them missing from `addedSet`, and executed `item.destroy()`, wiping all favorite icons from the dock.
+
+**Solution:**  
+Added a protective guard inside `_syncApps()`: if `favs` returns empty `[]` while existing favorite icons (`existingFavCount > 0`) are present in `this._appIconMap`, `_syncApps()` protects all existing favorite icons from destruction and retains them in `orderedTargetApps`:
+```javascript
+## ✅ ISSUE 16 — Scene Graph Reparenting During Pointer Interactions Suppresses Click Events
+
+**Trigger:** `_syncApps()` triggering while the user is pressing or hovering over a dock icon.
+
+**Symptom:**  
+Clicking an icon produces 0 reaction (`vfunc_clicked` is suppressed by Clutter).
+
+**Root Cause:**  
+When `_syncApps()` ran while the cursor was hovering or pressing an icon, `set_child_at_index()` detached/re-parented the child actor in Clutter's scene graph. Reparenting an actor under the cursor invalidates Clutter's picking sequence target, so `St.Button` missed `button-release` and suppressed `vfunc_clicked()`.
+
+**Solution:**  
+1. Added a deferred sync guard at the start of `_syncApps()`: if `_pointerInteractionActive` or `_isDraggingIcon` is true, `_syncApps()` logs a deferral and sets `_syncPending = true`.
+2. Added `_setPointerInteractionActive(active)` setter method: when interaction finishes (`active = false`), any deferred sync is safely scheduled via `GLib.idle_add`:
+```javascript
+_setPointerInteractionActive(active) {
+    this._pointerInteractionActive = active;
+    if (!active && this._syncPending) {
+        this._syncPending = false;
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._syncApps();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+}
+```
+
+---
+
 ## Quick Reference
 
 ### Extension Architecture
