@@ -177,6 +177,21 @@ Added `this._refreshAll()` call inside `enableEffect()` to immediately upload up
 
 ---
 
+## ✅ ISSUE 11 — Structural Sync Debouncing & Signal Cleanup Safety
+
+**Trigger:** Rapid window creation or DND event bursts.
+
+**Symptom:**  
+Multiple concurrent `idle_add` sources queued during rapid window/actor creation, leading to redundant layout syncs and event churn.
+
+**Root Cause:**  
+Undebounced `global.display 'window-created'` handlers pushed duplicate sync passes per frame.
+
+**Solution:**  
+Implemented single-flight `_queueSync()` debouncer using `GLib.source_remove()` and strict signal cleanup in `_stopWatchdog()`.
+
+---
+
 ## Quick Reference
 
 ### Extension Architecture
